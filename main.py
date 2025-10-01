@@ -1,7 +1,10 @@
 import sys
 import numpy as np
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                              QHBoxLayout, QComboBox, QPushButton, QLabel)
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, 
+    QHBoxLayout, QComboBox, QPushButton, QLabel, 
+    QLineEdit, QFormLayout
+)
 from PyQt6.QtCore import Qt
 from vispy import scene
 from vispy.scene import visuals
@@ -9,7 +12,7 @@ from vispy.scene import visuals
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("VisPy PyQt6 Application")
+        self.setWindowTitle("Serial plotter")
         self.setGeometry(100, 100, 1000, 600)
         
         # Create central widget and main layout
@@ -22,10 +25,12 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(sidebar)
         
         # Create VisPy canvas
-        self.canvas = scene.SceneCanvas(keys='interactive', show=True)
+        self.canvas = scene.SceneCanvas(keys='interactive', show=True, bgcolor='#1e1e1e')
         self.view = self.canvas.central_widget.add_view()
-        self.view.camera = 'turntable'
-        self.view.camera.distance = 10
+        self.view.camera = 'panzoom'
+        
+        # Add grid with Y-axis segmentation
+        self.grid = scene.GridLines(parent=self.view.scene, color=(0.4, 0.4, 0.4, 0.4))
         
         # Add canvas to main layout
         main_layout.addWidget(self.canvas.native, stretch=1)
@@ -46,13 +51,26 @@ class MainWindow(QMainWindow):
         # ComboBox
         self.plot_combo = QComboBox()
         self.plot_combo.addItems([
-            "3D Scatter Plot",
-            "3D Line Plot",
-            "3D Surface Plot",
-            "Spiral"
+            "Line Plot",
+            "Scatter Plot"
         ])
         self.plot_combo.currentTextChanged.connect(self.on_combo_changed)
         sidebar_layout.addWidget(self.plot_combo)
+        
+        # Y-axis range inputs
+        form_layout = QFormLayout()
+        
+        self.y_min_input = QLineEdit()
+        self.y_min_input.setText("0")
+        self.y_min_input.setPlaceholderText("Y Min")
+        form_layout.addRow("Y Min:", self.y_min_input)
+        
+        self.y_max_input = QLineEdit()
+        self.y_max_input.setText("4096")
+        self.y_max_input.setPlaceholderText("Y Max")
+        form_layout.addRow("Y Max:", self.y_max_input)
+        
+        sidebar_layout.addLayout(form_layout)
         
         # Button
         self.update_button = QPushButton("Update Plot")
@@ -71,69 +89,78 @@ class MainWindow(QMainWindow):
         # Clear existing visuals
         self.view.scene.children.clear()
         
+        # Get Y-axis range
+        try:
+            y_min = float(self.y_min_input.text())
+            y_max = float(self.y_max_input.text())
+        except ValueError:
+            y_min, y_max = 0, 4096
+            self.info_label.setText("Invalid Y range, using defaults")
+        
+        # Re-add grid
+        self.grid = scene.GridLines(parent=self.view.scene, color=(0.4, 0.4, 0.4, 0.4))
+        
+        # Add Y-axis with labels
+        y_axis = scene.AxisWidget(orientation='left')
+        y_axis.stretch = (1, 1)
+        self.view.add_widget(y_axis)
+        y_axis.link_view(self.view)
+        
         plot_type = self.plot_combo.currentText()
         
-        if plot_type == "3D Scatter Plot":
+        if plot_type == "Scatter Plot":
             self.create_scatter_plot()
-        elif plot_type == "3D Line Plot":
+        elif plot_type == "Line Plot":
             self.create_line_plot()
-        elif plot_type == "3D Surface Plot":
-            self.create_surface_plot()
-        elif plot_type == "Spiral":
-            self.create_spiral_plot()
+        
+        # Set camera range to match Y-axis limits
+        self.view.camera.set_range(y=(y_min, y_max))
     
     def create_scatter_plot(self):
-        # Generate random 3D points
-        n = 500
-        pos = np.random.randn(n, 3)
-        colors = np.random.rand(n, 4)
-        colors[:, 3] = 1.0  # Full opacity
+        # Generate random 2D points
+        n = 1000
+        pos = np.random.randn(n, 2) * 2
+        
+        # Create more appealing color palette
+        colors = np.zeros((n, 4))
+        colors[:, 0] = 0.3 + 0.7 * np.random.rand(n)  # Red channel
+        colors[:, 1] = 0.5 + 0.5 * np.random.rand(n)  # Green channel
+        colors[:, 2] = 0.8 + 0.2 * np.random.rand(n)  # Blue channel (more blue)
+        colors[:, 3] = 0.8  # Slight transparency for depth
         
         scatter = visuals.Markers()
-        scatter.set_data(pos, face_color=colors, size=5)
+        scatter.set_data(pos, face_color=colors, size=6, edge_width=0, 
+                        symbol='o', edge_color=None)
+        scatter.antialias = 1  # Enable antialiasing
         self.view.add(scatter)
     
     def create_line_plot(self):
-        # Generate a 3D line
-        t = np.linspace(0, 4*np.pi, 200)
-        pos = np.column_stack([
-            np.sin(t),
-            np.cos(t),
-            t / (4*np.pi) * 3
-        ])
+        # Generate the same random 2D points but connected with lines
+        n = 1000
+        np.random.seed(42)  # Use seed for consistent pattern
+        pos = np.random.randn(n, 2) * 2
         
-        line = visuals.Line(pos, color='cyan', width=3)
+        # Sort points by x-coordinate to create a meaningful line connection
+        sorted_indices = np.argsort(pos[:, 0])
+        pos_sorted = pos[sorted_indices]
+        
+        # Create antialiased line with better styling
+        line = visuals.Line(pos_sorted, color=(0.2, 0.8, 1.0, 0.9), 
+                           width=1, antialias=True, method='gl')
         self.view.add(line)
-    
-    def create_surface_plot(self):
-        # Generate a 3D surface
-        x = np.linspace(-3, 3, 50)
-        y = np.linspace(-3, 3, 50)
-        X, Y = np.meshgrid(x, y)
-        Z = np.sin(np.sqrt(X**2 + Y**2))
         
-        surface = visuals.SurfacePlot(x=x, y=y, z=Z, color=(0.5, 0.8, 1.0, 1.0))
-        self.view.add(surface)
-    
-    def create_spiral_plot(self):
-        # Generate a 3D spiral
-        t = np.linspace(0, 8*np.pi, 500)
-        radius = np.linspace(0.1, 2, 500)
-        pos = np.column_stack([
-            radius * np.cos(t),
-            radius * np.sin(t),
-            t / (2*np.pi)
-        ])
+        # Add points on top of the line with coordinated colors
+        colors = np.zeros((n, 4))
+        colors[:, 0] = 0.3 + 0.7 * np.random.rand(n)
+        colors[:, 1] = 0.5 + 0.5 * np.random.rand(n)
+        colors[:, 2] = 0.8 + 0.2 * np.random.rand(n)
+        colors[:, 3] = 0.85
         
-        # Create gradient colors
-        colors = np.zeros((500, 4))
-        colors[:, 0] = np.linspace(1, 0, 500)  # Red
-        colors[:, 1] = np.linspace(0, 1, 500)  # Green
-        colors[:, 2] = 0.5                      # Blue
-        colors[:, 3] = 1.0                      # Alpha
-        
-        line = visuals.Line(pos, color=colors, width=4)
-        self.view.add(line)
+        scatter = visuals.Markers()
+        scatter.set_data(pos_sorted, face_color=colors, size=5, 
+                        edge_width=0, edge_color=None, symbol='o')
+        scatter.antialias = 1
+        self.view.add(scatter)
 
 def main():
     app = QApplication(sys.argv)
