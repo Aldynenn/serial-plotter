@@ -71,7 +71,7 @@ class MainWindow(QMainWindow):
         form_layout.addRow("Y Min:", self.y_min_input)
         
         self.y_max_input = QLineEdit()
-        self.y_max_input.setText("4096")
+        self.y_max_input.setText("1024")
         self.y_max_input.setPlaceholderText("Y Max")
         form_layout.addRow("Y Max:", self.y_max_input)
         
@@ -165,13 +165,21 @@ class MainWindow(QMainWindow):
         if len(self.data_points) > 0:
             # No need to sort since data is already in time order
             self.line.set_data(self.data_points)
-            self.scatter.set_data(self.data_points)
+            # self.scatter.set_data(self.data_points)
+            self.scatter.set_data(
+                self.data_points, 
+                face_color=(0.1, 0.9, 1, 1), 
+                size=7, 
+                edge_width=0, 
+                edge_color=None, 
+                symbol='o'
+            )
             
             # Auto-adjust x-axis range to show recent data
             if len(self.data_points) > 1:
                 x_min = self.data_points[0, 0]
                 x_max = self.data_points[-1, 0]
-                self.view.camera.set_range(x=(x_min - 10, x_max + 10))
+                self.view.camera.set_range(x=(x_min - 5, x_max + 5))
 
     def create_line_plot(self):
         # Generate initial sequential data points
@@ -181,16 +189,15 @@ class MainWindow(QMainWindow):
         # Create sequential x values and random y values
         x_values = np.arange(n)
         y_values = np.random.randn(n) * 2
-        pos = np.column_stack([x_values, y_values])
         
         # Store initial data and update counter
-        self.data_points = pos
+        self.data_points = np.column_stack([x_values, y_values])
         self.x_counter = n
         
         # Create antialiased line with better styling
         self.line = visuals.Line(
-            pos, 
-            color=(0.1, 0.9, 1.0, 1), 
+            self.data_points, 
+            color=(0.1, 0.9, 1, 1), 
             width=1, 
             antialias=True, 
             method='gl'
@@ -199,16 +206,10 @@ class MainWindow(QMainWindow):
         
         # Add points on top of the line
         self.scatter = visuals.Markers()
-        self.scatter.set_data(
-            pos, 
-            face_color=(1, 0.9, 0.1, 1), 
-            size=7, 
-            edge_width=0, 
-            edge_color=None, 
-            symbol='o'
-        )
         self.scatter.antialias = 1
         self.view.add(self.scatter)
+
+        self.update_visuals()
 
 def main():
     app = QApplication(sys.argv)
