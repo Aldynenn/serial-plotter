@@ -36,7 +36,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.canvas.native, stretch=1)
         
         # Initialize with default plot
-        self.update_plot()
+        self.create_plot()
         
     def create_sidebar(self):
         sidebar = QWidget()
@@ -72,33 +72,45 @@ class MainWindow(QMainWindow):
         
         sidebar_layout.addLayout(form_layout)
         
-        # Button
-        self.update_button = QPushButton("Update Plot")
-        self.update_button.clicked.connect(self.update_plot)
-        sidebar_layout.addWidget(self.update_button)
+        # Set Range button
+        self.set_range_button = QPushButton("Set Range")
+        self.set_range_button.clicked.connect(self.set_camera_range)
+        sidebar_layout.addWidget(self.set_range_button)
+
+        # Clear button
+        self.clear_button = QPushButton("Flush values")
+        self.clear_button.clicked.connect(self.clear_plot_values)
+        sidebar_layout.addWidget(self.clear_button)
         
         # Add stretch to push everything to the top
         sidebar_layout.addStretch()
         
         return sidebar
     
+    def clear_plot_values(self):
+        self.scatter.set_data(np.empty((0, 2)))
+        self.line.set_data(np.empty((0, 2)))
+        self.info_label.setText("Values flushed")
+
     def on_combo_changed(self, text):
         self.info_label.setText(f"Selected: {text}")
     
-    def update_plot(self):
-        # Clear existing visuals
-        self.view.scene.children.clear()
-        
+    def set_camera_range(self):
         # Get Y-axis range
         try:
-            y_min = float(self.y_min_input.text())
-            y_max = float(self.y_max_input.text())
+            self.y_min = float(self.y_min_input.text())
+            self.y_max = float(self.y_max_input.text())
         except ValueError:
-            y_min, y_max = 0, 4096
+            self.y_min, self.y_max = 0, 4096
             self.info_label.setText("Invalid Y range, using defaults")
+        self.view.camera.set_range(y=(self.y_min, self.y_max))
+
+    def create_plot(self):
+        # Clear existing visuals
+        # self.view.scene.children.clear()
         
-        # Re-add grid
-        self.grid = scene.GridLines(parent=self.view.scene, color=(0.4, 0.4, 0.4, 0.4))
+        # Add grid
+        self.grid = scene.GridLines(parent=self.view.scene, color=(1, 1, 1, 0.5))
         
         # Add Y-axis with labels
         y_axis = scene.AxisWidget(orientation='left')
@@ -106,33 +118,12 @@ class MainWindow(QMainWindow):
         self.view.add_widget(y_axis)
         y_axis.link_view(self.view)
         
-        plot_type = self.plot_combo.currentText()
+        # plot_type = self.plot_combo.currentText()
         
-        if plot_type == "Scatter Plot":
-            self.create_scatter_plot()
-        elif plot_type == "Line Plot":
-            self.create_line_plot()
+        self.create_line_plot()
         
         # Set camera range to match Y-axis limits
-        self.view.camera.set_range(y=(y_min, y_max))
-    
-    def create_scatter_plot(self):
-        # Generate random 2D points
-        n = 1000
-        pos = np.random.randn(n, 2) * 2
-        
-        # Create more appealing color palette
-        colors = np.zeros((n, 4))
-        colors[:, 0] = 0.3 + 0.7 * np.random.rand(n)  # Red channel
-        colors[:, 1] = 0.5 + 0.5 * np.random.rand(n)  # Green channel
-        colors[:, 2] = 0.8 + 0.2 * np.random.rand(n)  # Blue channel (more blue)
-        colors[:, 3] = 0.8  # Slight transparency for depth
-        
-        scatter = visuals.Markers()
-        scatter.set_data(pos, face_color=colors, size=6, edge_width=0, 
-                        symbol='o', edge_color=None)
-        scatter.antialias = 1  # Enable antialiasing
-        self.view.add(scatter)
+        self.set_camera_range()
     
     def create_line_plot(self):
         # Generate the same random 2D points but connected with lines
@@ -145,9 +136,8 @@ class MainWindow(QMainWindow):
         pos_sorted = pos[sorted_indices]
         
         # Create antialiased line with better styling
-        line = visuals.Line(pos_sorted, color=(0.2, 0.8, 1.0, 0.9), 
-                           width=1, antialias=True, method='gl')
-        self.view.add(line)
+        self.line = visuals.Line(pos_sorted, color=(0.2, 0.8, 1.0, 1), width=0.5, antialias=True, method='gl')
+        self.view.add(self.line)
         
         # Add points on top of the line with coordinated colors
         colors = np.zeros((n, 4))
@@ -155,12 +145,11 @@ class MainWindow(QMainWindow):
         colors[:, 1] = 0.5 + 0.5 * np.random.rand(n)
         colors[:, 2] = 0.8 + 0.2 * np.random.rand(n)
         colors[:, 3] = 0.85
-        
-        scatter = visuals.Markers()
-        scatter.set_data(pos_sorted, face_color=colors, size=5, 
+        self.scatter = visuals.Markers()
+        self.scatter.set_data(pos_sorted, face_color=colors, size=5, 
                         edge_width=0, edge_color=None, symbol='o')
-        scatter.antialias = 1
-        self.view.add(scatter)
+        self.scatter.antialias = 1
+        self.view.add(self.scatter)
 
 def main():
     app = QApplication(sys.argv)
