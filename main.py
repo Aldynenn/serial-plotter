@@ -15,6 +15,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Serial plotter")
         self.setGeometry(100, 100, 1000, 600)
         
+        # Initialize data storage
+        self.data_points = np.empty((0, 2))
+        self.max_points = 500
+        self.x_counter = 0  # Counter for x-axis positioning
+        
         # Create central widget and main layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -81,6 +86,11 @@ class MainWindow(QMainWindow):
         self.clear_button = QPushButton("Flush values")
         self.clear_button.clicked.connect(self.clear_plot_values)
         sidebar_layout.addWidget(self.clear_button)
+
+        # Add button
+        self.add_value_button = QPushButton("Add new value")
+        self.add_value_button.clicked.connect(self.push_new_value)
+        sidebar_layout.addWidget(self.add_value_button)
         
         # Add stretch to push everything to the top
         sidebar_layout.addStretch()
@@ -88,8 +98,10 @@ class MainWindow(QMainWindow):
         return sidebar
     
     def clear_plot_values(self):
-        self.scatter.set_data(np.empty((0, 2)))
-        self.line.set_data(np.empty((0, 2)))
+        self.data_points = np.empty((0, 2))
+        self.x_counter = 0
+        self.scatter.set_data(self.data_points)
+        self.line.set_data(self.data_points)
         self.info_label.setText("Values flushed")
 
     def on_combo_changed(self, text):
@@ -125,29 +137,76 @@ class MainWindow(QMainWindow):
         # Set camera range to match Y-axis limits
         self.set_camera_range()
     
-    def create_line_plot(self):
-        # Generate the same random 2D points but connected with lines
-        n = 1000
-        np.random.seed(42)  # Use seed for consistent pattern
-        pos = np.random.randn(n, 2) * 2
+    def push_new_value(self, x_value=None, y_value=None):
+        """Push a new value to the right side of the data and remove oldest if exceeding max_points"""
+        # Generate random y value if not provided, use counter for x
+        if y_value is None:
+            y_value = np.random.randn() * 2
+            
+        # Use counter for x-axis to create time-series effect
+        x_value = self.x_counter
+        self.x_counter += 1
+            
+        # Create new point
+        new_point = np.array([[x_value, y_value]])
         
-        # Sort points by x-coordinate to create a meaningful line connection
-        sorted_indices = np.argsort(pos[:, 0])
-        pos_sorted = pos[sorted_indices]
+        # Add new point to data (always at the end/right side)
+        self.data_points = np.vstack([self.data_points, new_point])
+        
+        # Remove oldest point if exceeding max_points (from the left side)
+        if len(self.data_points) > self.max_points:
+            self.data_points = self.data_points[1:]
+        
+        # Update visuals
+        self.update_visuals()
+    
+    def update_visuals(self):
+        """Update the line and scatter plot with current data"""
+        if len(self.data_points) > 0:
+            # No need to sort since data is already in time order
+            self.line.set_data(self.data_points)
+            self.scatter.set_data(self.data_points)
+            
+            # Auto-adjust x-axis range to show recent data
+            if len(self.data_points) > 1:
+                x_min = self.data_points[0, 0]
+                x_max = self.data_points[-1, 0]
+                self.view.camera.set_range(x=(x_min - 10, x_max + 10))
+
+    def create_line_plot(self):
+        # Generate initial sequential data points
+        n = 490
+        np.random.seed(42)
+        
+        # Create sequential x values and random y values
+        x_values = np.arange(n)
+        y_values = np.random.randn(n) * 2
+        pos = np.column_stack([x_values, y_values])
+        
+        # Store initial data and update counter
+        self.data_points = pos
+        self.x_counter = n
         
         # Create antialiased line with better styling
-        self.line = visuals.Line(pos_sorted, color=(0.2, 0.8, 1.0, 1), width=0.5, antialias=True, method='gl')
+        self.line = visuals.Line(
+            pos, 
+            color=(0.1, 0.9, 1.0, 1), 
+            width=1, 
+            antialias=True, 
+            method='gl'
+        )
         self.view.add(self.line)
         
-        # Add points on top of the line with coordinated colors
-        colors = np.zeros((n, 4))
-        colors[:, 0] = 0.3 + 0.7 * np.random.rand(n)
-        colors[:, 1] = 0.5 + 0.5 * np.random.rand(n)
-        colors[:, 2] = 0.8 + 0.2 * np.random.rand(n)
-        colors[:, 3] = 0.85
+        # Add points on top of the line
         self.scatter = visuals.Markers()
-        self.scatter.set_data(pos_sorted, face_color=colors, size=5, 
-                        edge_width=0, edge_color=None, symbol='o')
+        self.scatter.set_data(
+            pos, 
+            face_color=(1, 0.9, 0.1, 1), 
+            size=7, 
+            edge_width=0, 
+            edge_color=None, 
+            symbol='o'
+        )
         self.scatter.antialias = 1
         self.view.add(self.scatter)
 
