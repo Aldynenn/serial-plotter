@@ -1,13 +1,22 @@
 import sys
 import numpy as np
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, 
-    QHBoxLayout, QComboBox, QPushButton, QLabel, 
-    QLineEdit, QFormLayout
+    QApplication, 
+    QMainWindow, 
+    QWidget, 
+    QVBoxLayout, 
+    QHBoxLayout, 
+    QComboBox, 
+    QPushButton, 
+    QLabel, 
+    QLineEdit, 
+    QFormLayout, 
+    QSlider
 )
 from PyQt6.QtCore import Qt
 from vispy import scene
 from vispy.scene import visuals
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -42,7 +51,9 @@ class MainWindow(QMainWindow):
         
         # Initialize with default plot
         self.create_plot()
-        
+
+
+
     def create_sidebar(self):
         sidebar = QWidget()
         sidebar.setMaximumWidth(250)
@@ -96,26 +107,8 @@ class MainWindow(QMainWindow):
         sidebar_layout.addStretch()
         
         return sidebar
-    
-    def clear_plot_values(self):
-        self.data_points = np.empty((0, 2))
-        self.x_counter = 0
-        self.scatter.set_data(self.data_points)
-        self.line.set_data(self.data_points)
-        self.info_label.setText("Values flushed")
 
-    def on_combo_changed(self, text):
-        self.info_label.setText(f"Selected: {text}")
-    
-    def set_camera_range(self):
-        # Get Y-axis range
-        try:
-            self.y_min = float(self.y_min_input.text())
-            self.y_max = float(self.y_max_input.text())
-        except ValueError:
-            self.y_min, self.y_max = 0, 4096
-            self.info_label.setText("Invalid Y range, using defaults")
-        self.view.camera.set_range(y=(self.y_min, self.y_max))
+
 
     def create_plot(self):
         # Clear existing visuals
@@ -136,7 +129,98 @@ class MainWindow(QMainWindow):
         
         # Set camera range to match Y-axis limits
         self.set_camera_range()
-    
+
+
+
+    def update_visuals(self):
+        """Update the line and scatter plot with current data"""
+        if len(self.data_points) > 0:
+            # No need to sort since data is already in time order
+            self.line.set_data(self.data_points)
+            self.scatter.set_data(
+                self.data_points, 
+                face_color=(0.1, 0.9, 1, 1), 
+                size=7, 
+                edge_width=0, 
+                edge_color=None, 
+                symbol='o'
+            )
+            
+        # Always set camera to show fixed range with newest data on right
+        # Current x position (newest data point)
+        current_x = self.x_counter - 1
+        
+        # Set fixed x-axis range showing max_points width
+        x_range_width = self.max_points
+        x_min = current_x - x_range_width + 1
+        x_max = current_x + 1
+        
+        # Get Y-axis range from input fields
+        try:
+            y_min = float(self.y_min_input.text())
+            y_max = float(self.y_max_input.text())
+        except ValueError:
+            y_min, y_max = 0, 1024
+        
+        # Set both X and Y ranges at the same time
+        self.view.camera.set_range(x=(x_min, x_max), y=(y_min, y_max))
+
+    def create_line_plot(self):
+        # Generate initial sequential data points
+        n = 490
+        np.random.seed(42)
+        
+        # Create sequential x values and random y values
+        x_values = np.arange(n)
+        # y_values = np.random.randn(n) * 2
+        # y values should be the sine of x values
+        y_values = 512 + 512 * np.sin(x_values * 0.2)
+        
+        # Store initial data and update counter
+        self.data_points = np.column_stack([x_values, y_values])
+        self.x_counter = n
+        
+        # Create antialiased line with better styling
+        self.line = visuals.Line(
+            self.data_points, 
+            color=(0.1, 0.9, 1, 1), 
+            width=1, 
+            antialias=True, 
+            method='gl'
+        )
+        self.view.add(self.line)
+        
+        # Add points on top of the line
+        self.scatter = visuals.Markers()
+        self.scatter.antialias = 1
+        self.view.add(self.scatter)
+
+        self.update_visuals()
+
+
+
+    def clear_plot_values(self):
+        self.data_points = np.empty((0, 2))
+        self.x_counter = 0
+        self.scatter.set_data(self.data_points)
+        self.line.set_data(self.data_points)
+        self.info_label.setText("Values flushed")
+
+    def on_combo_changed(self, text):
+        self.info_label.setText(f"Selected: {text}")
+
+    def set_camera_range(self):
+        # Get Y-axis range
+        try:
+            self.y_min = float(self.y_min_input.text())
+            self.y_max = float(self.y_max_input.text())
+        except ValueError:
+            self.y_min, self.y_max = 0, 1024
+            self.info_label.setText("Invalid Y range, using defaults")
+        
+        # Update visuals with new range
+        self.update_visuals()
+
     def push_new_value(self, x_value=None, y_value=None):
         """Push a new value to the right side of the data and remove oldest if exceeding max_points"""
         # Generate random y value if not provided, use counter for x
@@ -159,57 +243,8 @@ class MainWindow(QMainWindow):
         
         # Update visuals
         self.update_visuals()
-    
-    def update_visuals(self):
-        """Update the line and scatter plot with current data"""
-        if len(self.data_points) > 0:
-            # No need to sort since data is already in time order
-            self.line.set_data(self.data_points)
-            # self.scatter.set_data(self.data_points)
-            self.scatter.set_data(
-                self.data_points, 
-                face_color=(0.1, 0.9, 1, 1), 
-                size=7, 
-                edge_width=0, 
-                edge_color=None, 
-                symbol='o'
-            )
-            
-            # Auto-adjust x-axis range to show recent data
-            if len(self.data_points) > 1:
-                x_min = self.data_points[0, 0]
-                x_max = self.data_points[-1, 0]
-                self.view.camera.set_range(x=(x_min - 5, x_max + 5))
 
-    def create_line_plot(self):
-        # Generate initial sequential data points
-        n = 490
-        np.random.seed(42)
-        
-        # Create sequential x values and random y values
-        x_values = np.arange(n)
-        y_values = np.random.randn(n) * 2
-        
-        # Store initial data and update counter
-        self.data_points = np.column_stack([x_values, y_values])
-        self.x_counter = n
-        
-        # Create antialiased line with better styling
-        self.line = visuals.Line(
-            self.data_points, 
-            color=(0.1, 0.9, 1, 1), 
-            width=1, 
-            antialias=True, 
-            method='gl'
-        )
-        self.view.add(self.line)
-        
-        # Add points on top of the line
-        self.scatter = visuals.Markers()
-        self.scatter.antialias = 1
-        self.view.add(self.scatter)
 
-        self.update_visuals()
 
 def main():
     app = QApplication(sys.argv)
