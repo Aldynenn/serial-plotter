@@ -58,9 +58,14 @@ class MainWindow(QMainWindow):
         sidebar = QWidget()
         sidebar.setMaximumWidth(250)
         sidebar_layout = QVBoxLayout(sidebar)
-        
+
+        # Wrapper for COM port selection
+        # com_port_wrapper = QWidget()
+        # com_port_wrapper.setMaximumWidth(200)
+        # com_port_wrapper_layout = QHBoxLayout(com_port_wrapper)
+
         # Label
-        self.info_label = QLabel("Select a plot type:")
+        self.info_label = QLabel("Select COM port:")
         self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(self.info_label)
         
@@ -72,6 +77,12 @@ class MainWindow(QMainWindow):
         ])
         self.plot_combo.currentTextChanged.connect(self.on_combo_changed)
         sidebar_layout.addWidget(self.plot_combo)
+
+        # Refresh ports button
+        self.refresh_ports_button = QPushButton("Refresh ports")
+        # self.refresh_ports_button.clicked.connect(self.refresh_com_ports)
+        sidebar_layout.addWidget(self.refresh_ports_button)
+
         
         # Y-axis range inputs
         form_layout = QFormLayout()
@@ -140,7 +151,7 @@ class MainWindow(QMainWindow):
             self.scatter.set_data(
                 self.data_points, 
                 face_color=(0.1, 0.9, 1, 1), 
-                size=7, 
+                size=4, 
                 edge_width=0, 
                 edge_color=None, 
                 symbol='o'
@@ -248,6 +259,7 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    app.setStyle('Fusion')
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
