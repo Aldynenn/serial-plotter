@@ -1,5 +1,7 @@
 import sys
 import numpy as np
+import serial
+import serial.tools.list_ports
 from PyQt6.QtWidgets import (
     QApplication, 
     QMainWindow, 
@@ -13,7 +15,7 @@ from PyQt6.QtWidgets import (
     QFormLayout, 
     QSlider
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from vispy import scene
 from vispy.scene import visuals
 
@@ -28,6 +30,12 @@ class MainWindow(QMainWindow):
         self.data_points = np.empty((0, 2))
         self.max_points = 500
         self.x_counter = 0  # Counter for x-axis positioning
+        
+        # Serial communication variables
+        self.is_plotting = False
+        self.serial_port = None
+        self.serial_timer = QTimer()
+        self.serial_timer.timeout.connect(self.read_serial_data)
         
         # Create central widget and main layout
         central_widget = QWidget()
@@ -71,17 +79,18 @@ class MainWindow(QMainWindow):
         
         # ComboBox
         self.plot_combo = QComboBox()
-        self.plot_combo.addItems([
-            "Line Plot",
-            "Scatter Plot"
-        ])
         self.plot_combo.currentTextChanged.connect(self.on_combo_changed)
         sidebar_layout.addWidget(self.plot_combo)
 
         # Refresh ports button
         self.refresh_ports_button = QPushButton("Refresh ports")
-        # self.refresh_ports_button.clicked.connect(self.refresh_com_ports)
+        self.refresh_ports_button.clicked.connect(self.refresh_com_ports)
         sidebar_layout.addWidget(self.refresh_ports_button)
+
+        # Start-stop button
+        self.start_stop_button = QPushButton("Start")
+        self.start_stop_button.clicked.connect(self.toggle_start_stop)
+        sidebar_layout.addWidget(self.start_stop_button)
 
         
         # Y-axis range inputs
@@ -137,6 +146,7 @@ class MainWindow(QMainWindow):
         # plot_type = self.plot_combo.currentText()
         
         self.create_line_plot()
+        self.refresh_com_ports()
         
         # Set camera range to match Y-axis limits
         self.set_camera_range()
@@ -219,6 +229,63 @@ class MainWindow(QMainWindow):
 
     def on_combo_changed(self, text):
         self.info_label.setText(f"Selected: {text}")
+
+    def refresh_com_ports(self):
+        self.plot_combo.clear()
+        ports = serial.tools.list_ports.comports()
+        
+        if ports:
+            for port in ports:
+                port_display = f"{port.device} - {port.description}"
+                self.plot_combo.addItem(port_display, port.device)
+            self.info_label.setText(f"Found {len(ports)} port(s)")
+        else:
+            self.plot_combo.addItem("No ports available")
+            self.info_label.setText("No COM ports found")
+
+    def toggle_start_stop(self):
+        if not self.is_plotting:
+            port_device = self.plot_combo.currentData()
+            if not port_device or port_device == "No ports available":
+                self.info_label.setText("No valid port selected")
+                return
+            try:
+                self.serial_port = serial.Serial(port_device, 115200, timeout=0.1)
+                self.is_plotting = True
+                self.start_stop_button.setText("Stop")
+                self.serial_timer.start()
+                self.info_label.setText(f"Started plotting from {port_device}")
+            except serial.SerialException as e:
+                self.info_label.setText(f"Error opening port: {str(e)}")
+                self.serial_port = None
+        else:
+            self.stop_plotting()
+
+    def stop_plotting(self):
+        self.is_plotting = False
+        self.serial_timer.stop()
+        self.start_stop_button.setText("Start")
+        if self.serial_port and self.serial_port.is_open:
+            self.serial_port.close()
+            self.serial_port = None
+        self.info_label.setText("Stopped plotting")
+
+    def read_serial_data(self):
+        if not self.serial_port or not self.serial_port.is_open:
+            return
+        try:
+            while self.serial_port.in_waiting > 0:
+                line = self.serial_port.readline().decode('utf-8', errors='ignore').strip()
+                if line:
+                    try: # Try to parse as float
+                        value = float(line) 
+                        self.push_new_value(y_value=value)
+                    except ValueError: # Skip line if it can't be parsed
+                        pass
+        except serial.SerialException as e:
+            self.info_label.setText(f"Serial error: {str(e)}")
+            self.stop_plotting()
+
 
     def set_camera_range(self):
         # Get Y-axis range
