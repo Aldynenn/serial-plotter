@@ -13,7 +13,8 @@ from PyQt6.QtWidgets import (
     QLabel, 
     QLineEdit, 
     QFormLayout, 
-    QSlider
+    QSlider,
+    QCheckBox
 )
 from PyQt6.QtCore import Qt, QTimer
 from vispy import scene
@@ -36,6 +37,10 @@ class MainWindow(QMainWindow):
         self.serial_port = None
         self.serial_timer = QTimer()
         self.serial_timer.timeout.connect(self.read_serial_data)
+        
+        # Display settings
+        self.show_points = True
+        self.show_line = True
         
         # Create central widget and main layout
         central_widget = QWidget()
@@ -117,11 +122,17 @@ class MainWindow(QMainWindow):
         self.clear_button = QPushButton("Flush values")
         self.clear_button.clicked.connect(self.clear_plot_values)
         sidebar_layout.addWidget(self.clear_button)
-
-        # Add button
-        self.add_value_button = QPushButton("Add new value")
-        self.add_value_button.clicked.connect(self.push_new_value)
-        sidebar_layout.addWidget(self.add_value_button)
+        
+        # Display options checkboxes
+        self.show_line_checkbox = QCheckBox("Show lines")
+        self.show_line_checkbox.setChecked(True)
+        self.show_line_checkbox.stateChanged.connect(self.toggle_line_visibility)
+        sidebar_layout.addWidget(self.show_line_checkbox)
+        
+        self.show_points_checkbox = QCheckBox("Show points")
+        self.show_points_checkbox.setChecked(True)
+        self.show_points_checkbox.stateChanged.connect(self.toggle_points_visibility)
+        sidebar_layout.addWidget(self.show_points_checkbox)
         
         # Add stretch to push everything to the top
         sidebar_layout.addStretch()
@@ -154,20 +165,29 @@ class MainWindow(QMainWindow):
 
 
     def update_visuals(self):
-        """Update the line and scatter plot with current data"""
         if len(self.data_points) > 0:
-            # No need to sort since data is already in time order
-            self.line.set_data(self.data_points)
-            self.scatter.set_data(
-                self.data_points, 
-                face_color=(0.1, 0.9, 1, 1), 
-                size=4, 
-                edge_width=0, 
-                edge_color=None, 
-                symbol='o'
-            )
+            if self.show_line:
+                self.line.set_data(self.data_points)
+            else:
+                self.line.set_data(np.empty((0, 2)))
             
-        # Always set camera to show fixed range with newest data on right
+            if self.show_points:
+                self.scatter.set_data(
+                    self.data_points, 
+                    face_color=(0.1, 0.9, 1, 1), 
+                    size=4, 
+                    edge_width=0, 
+                    edge_color=None, 
+                    symbol='o'
+                )
+            else:
+                self.scatter.set_data(np.empty((0, 2)))
+        else:
+            # Clear the visuals when no data
+            self.line.set_data(np.empty((0, 2)))
+            self.scatter.set_data(np.empty((0, 2)))
+            
+        # Set camera to show fixed range with newest data on right
         # Current x position (newest data point)
         current_x = self.x_counter - 1
         
@@ -183,24 +203,10 @@ class MainWindow(QMainWindow):
         except ValueError:
             y_min, y_max = 0, 1024
         
-        # Set both X and Y ranges at the same time
-        self.view.camera.set_range(x=(x_min, x_max), y=(y_min, y_max))
+        # Set camera rect directly to avoid bounds computation issues with empty data
+        self.view.camera.rect = (x_min, y_min, x_max - x_min, y_max - y_min)
 
     def create_line_plot(self):
-        # Generate initial sequential data points
-        n = 490
-        np.random.seed(42)
-        
-        # Create sequential x values and random y values
-        x_values = np.arange(n)
-        # y_values = np.random.randn(n) * 2
-        # y values should be the sine of x values
-        y_values = 512 + 512 * np.sin(x_values * 0.2)
-        
-        # Store initial data and update counter
-        self.data_points = np.column_stack([x_values, y_values])
-        self.x_counter = n
-        
         # Create antialiased line with better styling
         self.line = visuals.Line(
             self.data_points, 
@@ -287,6 +293,14 @@ class MainWindow(QMainWindow):
             self.stop_plotting()
 
 
+    def toggle_line_visibility(self, state):
+        self.show_line = state == Qt.CheckState.Checked.value
+        self.update_visuals()
+    
+    def toggle_points_visibility(self, state):
+        self.show_points = state == Qt.CheckState.Checked.value
+        self.update_visuals()
+
     def set_camera_range(self):
         # Get Y-axis range
         try:
@@ -299,12 +313,8 @@ class MainWindow(QMainWindow):
         # Update visuals with new range
         self.update_visuals()
 
+
     def push_new_value(self, x_value=None, y_value=None):
-        """Push a new value to the right side of the data and remove oldest if exceeding max_points"""
-        # Generate random y value if not provided, use counter for x
-        if y_value is None:
-            y_value = np.random.randn() * 2
-            
         # Use counter for x-axis to create time-series effect
         x_value = self.x_counter
         self.x_counter += 1
