@@ -196,7 +196,7 @@ class MainWindow(QMainWindow):
                 self.scatter.set_data(
                     self.data_points, 
                     face_color=(0.1, 0.9, 1, 1), 
-                    size=4, 
+                    size=6, 
                     edge_width=0, 
                     edge_color=None, 
                     symbol='o'
