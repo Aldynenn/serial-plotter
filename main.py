@@ -38,6 +38,7 @@ class MainWindow(QMainWindow):
         self.serial_timer = QTimer()
         self.serial_timer.timeout.connect(self.read_serial_data)
         
+
         # Display settings
         self.show_points = True
         self.show_line = True
@@ -82,10 +83,18 @@ class MainWindow(QMainWindow):
         self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(self.info_label)
         
-        # ComboBox
+        # COM port and baud rate in FormLayout
+        com_form_layout = QFormLayout()
+        
         self.plot_combo = QComboBox()
         self.plot_combo.currentTextChanged.connect(self.on_combo_changed)
-        sidebar_layout.addWidget(self.plot_combo)
+        com_form_layout.addRow("COM Port:", self.plot_combo)
+
+        self.baud_rate_input = QLineEdit()
+        self.baud_rate_input.setText("115200")
+        com_form_layout.addRow("Baud Rate:", self.baud_rate_input)
+        
+        sidebar_layout.addLayout(com_form_layout)
 
         # Refresh ports button
         self.refresh_ports_button = QPushButton("Refresh ports")
@@ -256,13 +265,17 @@ class MainWindow(QMainWindow):
                 self.info_label.setText("No valid port selected")
                 return
             try:
-                self.serial_port = serial.Serial(port_device, 115200, timeout=0.1)
+                baud_rate = int(self.baud_rate_input.text())
+            except ValueError:
+                baud_rate = 115200
+            try:
+                self.serial_port = serial.Serial(port_device, baud_rate, timeout=0.1)
                 self.is_plotting = True
                 self.start_stop_button.setText("Stop")
                 self.serial_timer.start()
                 self.info_label.setText(f"Started plotting from {port_device}")
             except serial.SerialException as e:
-                self.info_label.setText(f"Error opening port: {str(e)}")
+                self.info_label.setText(f"Error opening port!")
                 self.serial_port = None
         else:
             self.stop_plotting()
