@@ -9,6 +9,7 @@ A serial data plotter built with PyQt6 and VisPy for visualizing numeric data fr
 - Toggle display between lines, points, or both
 - Multiple baud rate support
 - Displays up to 500 data points (auto-scrolling)
+- Value statistics (min, max, average, mode, median, standard deviation)
 
 ## Installation
 

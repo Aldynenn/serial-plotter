@@ -73,11 +73,6 @@ class MainWindow(QMainWindow):
         sidebar.setMaximumWidth(250)
         sidebar_layout = QVBoxLayout(sidebar)
 
-        # Wrapper for COM port selection
-        # com_port_wrapper = QWidget()
-        # com_port_wrapper.setMaximumWidth(200)
-        # com_port_wrapper_layout = QHBoxLayout(com_port_wrapper)
-
         # Label
         self.info_label = QLabel("Select COM port:")
         self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -93,6 +88,10 @@ class MainWindow(QMainWindow):
         self.baud_rate_input = QLineEdit()
         self.baud_rate_input.setText("115200")
         com_form_layout.addRow("Baud Rate:", self.baud_rate_input)
+        
+        self.max_points_input = QLineEdit()
+        self.max_points_input.setText("500")
+        com_form_layout.addRow("Max Points:", self.max_points_input)
         
         sidebar_layout.addLayout(com_form_layout)
 
@@ -111,7 +110,7 @@ class MainWindow(QMainWindow):
         form_layout = QFormLayout()
         
         self.y_min_input = QLineEdit()
-        self.y_min_input.setText("0")
+        self.y_min_input.setText("-1024")
         self.y_min_input.setPlaceholderText("Y Min")
         form_layout.addRow("Y Min:", self.y_min_input)
         
@@ -143,6 +142,19 @@ class MainWindow(QMainWindow):
         self.show_points_checkbox.stateChanged.connect(self.toggle_points_visibility)
         sidebar_layout.addWidget(self.show_points_checkbox)
         
+        # Statistics display
+        self.stats_label = QLabel(
+            "Statistics:\n"
+            "Min: N/A\n"
+            "Max: N/A\n"
+            "Avg: N/A\n"
+            "Mode: N/A\n"
+            "Median: N/A\n"
+            "Std. dev.: N/A"
+        )
+        self.stats_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        sidebar_layout.addWidget(self.stats_label)
+
         # Add stretch to push everything to the top
         sidebar_layout.addStretch()
         
@@ -241,6 +253,7 @@ class MainWindow(QMainWindow):
         self.scatter.set_data(self.data_points)
         self.line.set_data(self.data_points)
         self.info_label.setText("Values flushed")
+        self.update_statistics()
 
     def on_combo_changed(self, text):
         self.info_label.setText(f"Selected: {text}")
@@ -268,6 +281,12 @@ class MainWindow(QMainWindow):
                 baud_rate = int(self.baud_rate_input.text())
             except ValueError:
                 baud_rate = 115200
+            try:
+                max_points = int(self.max_points_input.text())
+                if max_points > 0:
+                    self.max_points = max_points
+            except ValueError:
+                pass  # Keep current max_points value
             try:
                 self.serial_port = serial.Serial(port_device, baud_rate, timeout=0.1)
                 self.is_plotting = True
@@ -326,6 +345,48 @@ class MainWindow(QMainWindow):
         # Update visuals with new range
         self.update_visuals()
 
+    def update_statistics(self):
+        if len(self.data_points) == 0:
+            self.stats_label.setText(
+                "Statistics:\n"
+                "Min: N/A\n"
+                "Max: N/A\n"
+                "Avg: N/A\n"
+                "Mode: N/A\n"
+                "Median: N/A\n"
+                "Std. dev.: N/A"
+            )
+            return
+        
+        # Extract Y values
+        y_values = self.data_points[:, 1]
+        
+        # Calculate statistics
+        min_val = np.min(y_values)
+        max_val = np.max(y_values)
+        avg_val = np.mean(y_values)
+        median_val = np.median(y_values)
+        
+        # Calculate mode (most frequent value, rounded to 2 decimals for grouping)
+        if len(y_values) >= 2:
+            rounded_values = np.round(y_values, 2)
+            unique_vals, counts = np.unique(rounded_values, return_counts=True)
+            mode_val = unique_vals[np.argmax(counts)]
+            std_val = np.std(y_values)
+        else:
+            mode_val = y_values[0]
+            std_val = 0.0
+        
+        # Update label with formatted statistics
+        self.stats_label.setText(
+            f"Statistics:\n"
+            f"Min: {min_val:.2f}\n"
+            f"Max: {max_val:.2f}\n"
+            f"Avg: {avg_val:.2f}\n"
+            f"Mode: {mode_val:.2f}\n"
+            f"Median: {median_val:.2f}\n"
+            f"Std. dev.: {std_val:.2f}"
+        )
 
     def push_new_value(self, x_value=None, y_value=None):
         # Use counter for x-axis to create time-series effect
@@ -342,8 +403,9 @@ class MainWindow(QMainWindow):
         if len(self.data_points) > self.max_points:
             self.data_points = self.data_points[1:]
         
-        # Update visuals
+        # Update visuals and statistics
         self.update_visuals()
+        self.update_statistics()
 
 
 
