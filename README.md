@@ -4,11 +4,12 @@ A serial data plotter built with PyQt6 and VisPy for visualizing numeric data fr
 
 ## Features
 
+- **Multiple dataset visualization** - Plot multiple data series simultaneously with automatic color coding
 - Real-time plotting with interactive pan and zoom controls
 - Customizable Y-axis range
 - Toggle display between lines, points, or both
 - Multiple baud rate support
-- Displays up to 500 data points (auto-scrolling)
+- Displays configurable amount of values per dataset (auto-scrolling)
 - Value statistics (min, max, average, mode, median, standard deviation)
 
 ## Installation
@@ -42,7 +43,9 @@ uv run main.py
 
 ### Data Format
 
-Send one numeric value per line via serial:
+The plotter supports two data formats:
+
+**Single dataset (untagged):**
 ```
 123.45
 456.78
@@ -50,7 +53,18 @@ Send one numeric value per line via serial:
 ...
 ```
 
-Non-numeric lines are ignored.
+**Multiple datasets (tagged):**
+```
+temperature:25.3
+humidity:60.5
+temperature:25.8
+humidity:61.2
+...
+```
+
+Format: `tag:value` where `tag` is the dataset identifier and `value` is numeric.
+
+Each unique tag creates a new dataset with its own color. Non-numeric lines are ignored.
 
 ### Controls
 
