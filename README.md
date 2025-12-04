@@ -1,6 +1,6 @@
 # Serial Plotter
 
-A serial data plotter built with PyQt6 and VisPy for visualizing numeric data from serial devices.
+A serial data plotter built with PyQt6 and VisPy for visualizing numeric data from serial devices. Supports multiple datasets and real-time plotting.
 
 ## Features
 
@@ -14,7 +14,7 @@ A serial data plotter built with PyQt6 and VisPy for visualizing numeric data fr
 
 ## Installation
 
-Install dependencies (ignore if you're using UV):
+Install dependencies (ignore if you're using [UV](https://github.com/astral-sh/uv)):
 
 ```bash
 pip install PyQt6 vispy numpy pyserial
@@ -22,7 +22,9 @@ pip install PyQt6 vispy numpy pyserial
 
 ## Usage
 
-Run the application:
+The script works directly with Python or by using [UV](https://github.com/astral-sh/uv).
+
+Run with Python:
 
 ```bash
 python main.py
@@ -45,7 +47,8 @@ uv run main.py
 
 The plotter supports two data formats:
 
-**Single dataset (untagged):**
+#### Single dataset (untagged):
+Serial data lines only contain numeric values.
 ```
 123.45
 456.78
@@ -53,7 +56,12 @@ The plotter supports two data formats:
 ...
 ```
 
-**Multiple datasets (tagged):**
+**Example:**
+
+![Single dataset example - sine wave](example.jpg)
+
+#### Multiple datasets (tagged):
+Serial data lines are formatted as `tag:value`.
 ```
 temperature:25.3
 humidity:60.5
@@ -61,6 +69,10 @@ temperature:25.8
 humidity:61.2
 ...
 ```
+
+**Example:**
+
+![Multiple datasets example - sine and square waves](example-multiple.jpg)
 
 Format: `tag:value` where `tag` is the dataset identifier and `value` is numeric.
 
