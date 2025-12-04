@@ -14,7 +14,7 @@ COLOR_PALETTE = [
 ]
 
 # Visual settings
-GRID_COLOR = (0.4, 0.4, 0.4, 0.4)
-BACKGROUND_COLOR = '#1e1e1e'
+GRID_COLOR = (0.5, 0.5, 0.5, 0.75)
+BACKGROUND_COLOR = '#0f0f0f'
 LINE_WIDTH = 2
 MARKER_SIZE = 4
